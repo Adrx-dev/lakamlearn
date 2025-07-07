@@ -1,4 +1,3 @@
-import { createClient } from "@/lib/supabase/server"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { PostContent } from "@/components/posts/post-content"
@@ -6,68 +5,11 @@ import { PostActions } from "@/components/posts/post-actions"
 import { CommentsSection } from "@/components/posts/comments-section"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { dbService } from "@/lib/database-service"
 import { notFound, redirect } from "next/navigation"
 import { validateSlug, sanitizeSlug } from "@/lib/utils"
 import { FileX, Home, ArrowLeft } from "lucide-react"
 import Link from "next/link"
-import type { Post } from "@/lib/types"
-
-async function getPost(slug: string): Promise<Post | null> {
-  if (!slug || typeof slug !== "string") {
-    return null
-  }
-
-  if (!validateSlug(slug)) {
-    console.error("Invalid slug:", slug)
-    return null
-  }
-
-  try {
-    const supabase = await createClient()
-
-    const { data: post, error } = await supabase
-      .from("posts")
-      .select(`
-        *,
-        author:profiles(*),
-        category:categories(*)
-      `)
-      .eq("slug", slug)
-      .eq("published", true)
-      .single()
-
-    if (error) {
-      console.error("Post fetch error:", error)
-      return null
-    }
-
-    if (!post) return null
-
-    // Get likes and comments count
-    try {
-      const [likesResult, commentsResult] = await Promise.all([
-        supabase.from("likes").select("*", { count: "exact", head: true }).eq("post_id", post.id),
-        supabase.from("comments").select("*", { count: "exact", head: true }).eq("post_id", post.id),
-      ])
-
-      return {
-        ...post,
-        likes_count: likesResult.count || 0,
-        comments_count: commentsResult.count || 0,
-      }
-    } catch (countError) {
-      console.error("Error fetching post counts:", countError)
-      return {
-        ...post,
-        likes_count: 0,
-        comments_count: 0,
-      }
-    }
-  } catch (error) {
-    console.error("Unexpected error fetching post:", error)
-    return null
-  }
-}
 
 interface PageProps {
   params: Promise<{ slug: string }>
@@ -119,7 +61,7 @@ export default async function PostPage({ params }: PageProps) {
     )
   }
 
-  const post = await getPost(slug)
+  const post = await dbService.getPostBySlug(slug)
 
   if (!post) {
     notFound()
@@ -165,25 +107,15 @@ export async function generateMetadata({ params }: PageProps) {
       return {
         title: "Invalid Post | Lakambini Learn",
         description: "The requested post URL is invalid or malformed.",
-        openGraph: {
-          title: "Invalid Post | Lakambini Learn",
-          description: "The requested post URL is invalid or malformed.",
-          images: ["/images/lakambini-logo.png"],
-        },
       }
     }
 
-    const post = await getPost(slug)
+    const post = await dbService.getPostBySlug(slug)
 
     if (!post) {
       return {
         title: "Post Not Found | Lakambini Learn",
         description: "The requested post could not be found.",
-        openGraph: {
-          title: "Post Not Found | Lakambini Learn",
-          description: "The requested post could not be found.",
-          images: ["/images/lakambini-logo.png"],
-        },
       }
     }
 
@@ -192,7 +124,6 @@ export async function generateMetadata({ params }: PageProps) {
       description: post.excerpt || post.content.substring(0, 200),
       keywords: `${post.category?.name || "education"}, Grade XI, Lakambini, learning, ${post.title}`,
       authors: [{ name: post.author?.full_name || "Lakambini Learn" }],
-
       openGraph: {
         title: `${post.title} | Lakambini Learn`,
         description: post.excerpt || post.content.substring(0, 200),
@@ -213,7 +144,6 @@ export async function generateMetadata({ params }: PageProps) {
         section: post.category?.name || "Education",
         tags: [post.category?.name || "education", "Grade XI", "Lakambini"],
       },
-
       twitter: {
         card: "summary_large_image",
         title: `${post.title} | Lakambini Learn`,
