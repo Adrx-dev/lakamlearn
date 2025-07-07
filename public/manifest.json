@@ -1,0 +1,36 @@
+{
+  "name": "Lakambini Learn - Grade XI Education Platform",
+  "short_name": "Lakambini Learn",
+  "description": "A modern education blog platform celebrating Filipino culture and academic excellence for Grade XI students.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#d946ef",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/images/lakambini-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/images/lakambini-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["education", "productivity", "social"],
+  "lang": "en",
+  "dir": "ltr",
+  "scope": "/",
+  "screenshots": [
+    {
+      "src": "/images/lakambini-logo.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide"
+    }
+  ]
+}

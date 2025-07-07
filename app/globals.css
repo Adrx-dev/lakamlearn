@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Lakambini theme colors */
+    --background: 0 0% 100%;
+    --foreground: 332 81% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 332 81% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 332 81% 15%;
+
+    --primary: 292 84% 61%; /* Lakambini purple */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 43 96% 56%; /* Gold accent */
+    --secondary-foreground: 43 96% 15%;
+
+    --muted: 292 30% 95%;
+    --muted-foreground: 332 81% 45%;
+
+    --accent: 43 96% 90%;
+    --accent-foreground: 43 96% 15%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 292 30% 90%;
+    --input: 292 30% 90%;
+    --ring: 292 84% 61%;
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 332 81% 5%;
+    --foreground: 292 30% 95%;
+
+    --card: 332 81% 8%;
+    --card-foreground: 292 30% 95%;
+
+    --popover: 332 81% 8%;
+    --popover-foreground: 292 30% 95%;
+
+    --primary: 292 84% 61%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 43 96% 56%;
+    --secondary-foreground: 43 96% 95%;
+
+    --muted: 332 81% 15%;
+    --muted-foreground: 292 30% 65%;
+
+    --accent: 332 81% 15%;
+    --accent-foreground: 292 30% 95%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 332 81% 15%;
+    --input: 332 81% 15%;
+    --ring: 292 84% 61%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom Lakambini styles */
+.lakambini-gradient {
+  background: linear-gradient(135deg, #d946ef 0%, #f59e0b 100%);
+}
+
+.lakambini-text-gradient {
+  background: linear-gradient(135deg, #d946ef 0%, #f59e0b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.lakambini-border-gradient {
+  border-image: linear-gradient(135deg, #d946ef 0%, #f59e0b 100%) 1;
+}
+
+/* Decorative elements inspired by Filipino patterns */
+.filipino-pattern {
+  background-image: radial-gradient(circle at 25% 25%, #f59e0b 2px, transparent 2px),
+    radial-gradient(circle at 75% 75%, #d946ef 2px, transparent 2px);
+  background-size: 50px 50px;
+  background-position: 0 0, 25px 25px;
+}
+
+/* Animation for the logo */
+.logo-glow {
+  filter: drop-shadow(0 0 10px rgba(217, 70, 239, 0.3));
+  transition: filter 0.3s ease;
+}
+
+.logo-glow:hover {
+  filter: drop-shadow(0 0 20px rgba(217, 70, 239, 0.5));
+}
+
+a[href*="v0.dev"],
+a[href*="v0.dev"] div {
+  display: none !important;
+}
