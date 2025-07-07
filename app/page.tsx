@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { optimizedDb } from "@/lib/optimized-database"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { PostCard } from "@/components/posts/post-card"
@@ -8,57 +8,24 @@ import Link from "next/link"
 import { BookOpen, Users, TrendingUp } from "lucide-react"
 import type { Post } from "@/lib/types"
 import Image from "next/image"
+import { createClient } from "@/lib/supabase/server"
 
 async function getFeaturedPosts(): Promise<Post[]> {
   try {
-    const supabase = await createClient()
-
-    const { data: posts, error } = await supabase
-      .from("posts")
-      .select(`
-        *,
-        author:profiles(*),
-        category:categories(*)
-      `)
-      .eq("published", true)
-      .order("created_at", { ascending: false })
-      .limit(6)
+    const { data, error } = await optimizedDb.getPosts({
+      limit: 6,
+      offset: 0,
+      publishedOnly: true,
+    })
 
     if (error) {
-      console.error("Error fetching posts:", error)
+      console.error("Error fetching featured posts:", error)
       return []
     }
 
-    if (!posts || posts.length === 0) return []
-
-    // Get likes and comments count for each post
-    const postsWithCounts = await Promise.all(
-      posts.map(async (post) => {
-        try {
-          const [likesResult, commentsResult] = await Promise.all([
-            supabase.from("likes").select("*", { count: "exact", head: true }).eq("post_id", post.id),
-            supabase.from("comments").select("*", { count: "exact", head: true }).eq("post_id", post.id),
-          ])
-
-          return {
-            ...post,
-            likes_count: likesResult.count || 0,
-            comments_count: commentsResult.count || 0,
-          }
-        } catch (error) {
-          console.error("Error fetching post counts:", error)
-          return {
-            ...post,
-            likes_count: 0,
-            comments_count: 0,
-          }
-        }
-      }),
-    )
-
-    return postsWithCounts as Post[]
+    return data
   } catch (error) {
-    console.error("Error in getFeaturedPosts:", error)
+    console.error("Unexpected error fetching featured posts:", error)
     return []
   }
 }
@@ -66,7 +33,11 @@ async function getFeaturedPosts(): Promise<Post[]> {
 async function getCategories() {
   try {
     const supabase = await createClient()
-    const { data: categories, error } = await supabase.from("categories").select("*").order("name")
+    const { data: categories, error } = await supabase
+      .from("categories")
+      .select("id, name, slug")
+      .order("name")
+      .limit(10)
 
     if (error) {
       console.error("Error fetching categories:", error)
@@ -90,13 +61,11 @@ export default async function HomePage() {
       <main className="flex-1">
         {/* Hero Section */}
         <section className="py-12 md:py-24 lg:py-32 relative overflow-hidden">
-          {/* Background Pattern */}
           <div className="absolute inset-0 filipino-pattern opacity-5"></div>
           <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-secondary/10"></div>
 
           <div className="container px-4 md:px-6 relative">
             <div className="flex flex-col items-center space-y-6 text-center">
-              {/* Logo */}
               <div className="animate-fade-in">
                 <Image
                   src="/images/lakambini-logo.png"

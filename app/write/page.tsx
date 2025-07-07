@@ -1,5 +1,7 @@
 "use client"
 
+import { cn } from "@/lib/utils"
+
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -9,13 +11,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Header } from "@/components/layout/header"
-import { ImageUpload } from "@/components/ui/image-upload"
+import { EnhancedImageUpload } from "@/components/ui/enhanced-image-upload"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useCenteredToastContext } from "@/components/providers/toast-provider"
-import { storageManager } from "@/lib/storage"
 import { generateSlug, extractExcerpt } from "@/lib/utils"
-import { Save, Eye, AlertCircle } from "lucide-react"
+import { Save, Eye, AlertCircle, Loader2 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import type { Category } from "@/lib/types"
 
@@ -27,12 +28,11 @@ export default function WritePage() {
   const [content, setContent] = useState("")
   const [excerpt, setExcerpt] = useState("")
   const [categoryId, setCategoryId] = useState("")
-  const [coverImageFile, setCoverImageFile] = useState<File | null>(null)
   const [coverImageUrl, setCoverImageUrl] = useState("")
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(false)
-  const [uploading, setUploading] = useState(false)
   const [slugPreview, setSlugPreview] = useState("")
+  const [errors, setErrors] = useState<Record<string, string>>({})
   const supabase = createClient()
 
   useEffect(() => {
@@ -40,12 +40,10 @@ export default function WritePage() {
       router.push("/auth/login")
       return
     }
-
     fetchCategories()
   }, [user, router])
 
   useEffect(() => {
-    // Update slug preview when title changes
     if (title.trim()) {
       setSlugPreview(generateSlug(title))
     } else {
@@ -54,82 +52,87 @@ export default function WritePage() {
   }, [title])
 
   useEffect(() => {
-    // Auto-generate excerpt if not provided
     if (content.trim() && !excerpt.trim()) {
       setExcerpt(extractExcerpt(content, 200))
     }
   }, [content, excerpt])
 
   const fetchCategories = async () => {
-    const { data } = await supabase.from("categories").select("*").order("name")
+    try {
+      const { data, error } = await supabase.from("categories").select("*").order("name")
 
-    if (data) {
-      setCategories(data)
+      if (error) {
+        console.error("Error fetching categories:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load categories. Please refresh the page.",
+          variant: "error",
+          duration: 4000,
+        })
+        return
+      }
+
+      if (data) {
+        setCategories(data)
+      }
+    } catch (error) {
+      console.error("Unexpected error fetching categories:", error)
     }
   }
 
-  const handleCoverImageChange = (file: File | null, previewUrl: string) => {
-    setCoverImageFile(file)
-    setCoverImageUrl(previewUrl)
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {}
 
-    if (file) {
-      toast({
-        title: "Cover Image Selected",
-        description: "Cover image ready for upload.",
-        variant: "info",
-        duration: 2000,
-      })
+    if (!title.trim()) {
+      newErrors.title = "Title is required"
+    } else if (title.length > 200) {
+      newErrors.title = "Title must be less than 200 characters"
     }
+
+    if (!content.trim()) {
+      newErrors.content = "Content is required"
+    } else if (content.length < 50) {
+      newErrors.content = "Content must be at least 50 characters"
+    }
+
+    if (excerpt && excerpt.length > 500) {
+      newErrors.excerpt = "Excerpt must be less than 500 characters"
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
   }
 
   const checkSlugExists = async (slug: string): Promise<boolean> => {
-    const { data } = await supabase.from("posts").select("id").eq("slug", slug).single()
-    return !!data
+    try {
+      const { data, error } = await supabase.from("posts").select("id").eq("slug", slug).single()
+
+      if (error && error.code !== "PGRST116") {
+        console.error("Error checking slug:", error)
+      }
+
+      return !!data
+    } catch (error) {
+      console.error("Unexpected error checking slug:", error)
+      return false
+    }
   }
 
   const handleSave = async (published = false) => {
-    if (!user || !title.trim() || !content.trim()) {
-      toast({
-        title: "Missing Information",
-        description: "Please fill in both the title and content before saving.",
-        variant: "warning",
-        duration: 4000,
-      })
+    if (!user || !validateForm()) {
+      if (!user) {
+        toast({
+          title: "Authentication required",
+          description: "Please log in to create posts.",
+          variant: "warning",
+          duration: 4000,
+        })
+      }
       return
     }
 
     setLoading(true)
     try {
-      let finalCoverImageUrl = null
-      if (coverImageFile) {
-        setUploading(true)
-        try {
-          finalCoverImageUrl = await storageManager.uploadPostImage(coverImageFile, user.id)
-          setUploading(false)
-
-          if (!finalCoverImageUrl) {
-            throw new Error("Failed to upload cover image")
-          }
-
-          toast({
-            title: "Image Uploaded",
-            description: "Cover image uploaded successfully.",
-            variant: "success",
-            duration: 2000,
-          })
-        } catch (uploadError: any) {
-          setUploading(false)
-          toast({
-            title: "Upload Failed",
-            description: uploadError.message || "Failed to upload cover image.",
-            variant: "error",
-            duration: 4000,
-          })
-          setLoading(false)
-          return
-        }
-      }
-
       let slug = generateSlug(title)
 
       // Check if slug already exists and modify if needed
@@ -145,23 +148,22 @@ export default function WritePage() {
 
       const finalExcerpt = excerpt.trim() || extractExcerpt(content, 200)
 
-      const { data, error } = await supabase
-        .from("posts")
-        .insert({
-          title: title.trim(),
-          slug,
-          content: content.trim(),
-          excerpt: finalExcerpt,
-          cover_image_url: finalCoverImageUrl,
-          author_id: user.id,
-          category_id: categoryId || null,
-          published,
-        })
-        .select()
-        .single()
+      const postData = {
+        title: title.trim(),
+        slug,
+        content: content.trim(),
+        excerpt: finalExcerpt,
+        cover_image_url: coverImageUrl || null,
+        author_id: user.id,
+        category_id: categoryId || null,
+        published,
+      }
+
+      const { data, error } = await supabase.from("posts").insert(postData).select().single()
 
       if (error) {
-        throw error
+        console.error("Post creation error:", error)
+        throw new Error(error.message || "Failed to create post")
       }
 
       const selectedCategory = categories.find((cat) => cat.id === categoryId)
@@ -177,7 +179,7 @@ export default function WritePage() {
         duration: 4000,
       })
 
-      // Small delay to show the success message
+      // Redirect after success
       setTimeout(() => {
         router.push(published ? `/posts/${slug}` : "/dashboard")
       }, 2000)
@@ -191,12 +193,31 @@ export default function WritePage() {
       })
     } finally {
       setLoading(false)
-      setUploading(false)
     }
   }
 
+  const handleImageUpload = (url: string | null) => {
+    setCoverImageUrl(url || "")
+  }
+
+  const handleImageError = (error: string) => {
+    toast({
+      title: "Upload Failed",
+      description: error,
+      variant: "error",
+      duration: 4000,
+    })
+  }
+
   if (!user) {
-    return null
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -217,9 +238,11 @@ export default function WritePage() {
                 placeholder="Enter your post title..."
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="text-lg"
+                className={cn("text-lg", errors.title && "border-destructive")}
                 disabled={loading}
+                maxLength={200}
               />
+              {errors.title && <p className="text-sm text-destructive">{errors.title}</p>}
               {slugPreview && (
                 <div className="text-sm text-muted-foreground">
                   <span className="font-medium">URL Preview:</span> /posts/{slugPreview}
@@ -236,10 +259,12 @@ export default function WritePage() {
                 onChange={(e) => setExcerpt(e.target.value)}
                 rows={2}
                 disabled={loading}
-                maxLength={300}
+                maxLength={500}
+                className={errors.excerpt ? "border-destructive" : ""}
               />
+              {errors.excerpt && <p className="text-sm text-destructive">{errors.excerpt}</p>}
               <div className="text-xs text-muted-foreground">
-                {excerpt.length}/300 characters {!excerpt.trim() && content.trim() && "(will be auto-generated)"}
+                {excerpt.length}/500 characters {!excerpt.trim() && content.trim() && "(will be auto-generated)"}
               </div>
             </div>
 
@@ -261,12 +286,15 @@ export default function WritePage() {
               </div>
             </div>
 
-            <ImageUpload
+            <EnhancedImageUpload
               variant="cover"
               value={coverImageUrl}
-              onChange={handleCoverImageChange}
-              disabled={loading || uploading}
+              onChange={handleImageUpload}
+              onError={handleImageError}
+              disabled={loading}
               maxSize={5}
+              quality={0.8}
+              userId={user.id}
             />
 
             <div className="space-y-2">
@@ -277,19 +305,20 @@ export default function WritePage() {
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 rows={20}
-                className="font-mono"
+                className={cn("font-mono", errors.content && "border-destructive")}
                 disabled={loading}
               />
+              {errors.content && <p className="text-sm text-destructive">{errors.content}</p>}
               <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                 <AlertCircle className="h-4 w-4" />
                 <span>You can use Markdown formatting in your content.</span>
               </div>
             </div>
 
-            {(!title.trim() || !content.trim()) && (
-              <Alert>
+            {Object.keys(errors).length > 0 && (
+              <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>Please fill in the title and content before saving your post.</AlertDescription>
+                <AlertDescription>Please fix the errors above before saving your post.</AlertDescription>
               </Alert>
             )}
 
@@ -304,7 +333,7 @@ export default function WritePage() {
                   onClick={() => handleSave(false)}
                   disabled={loading || !title.trim() || !content.trim()}
                 >
-                  <Save className="h-4 w-4 mr-2" />
+                  {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                   Save Draft
                 </Button>
 
@@ -313,8 +342,8 @@ export default function WritePage() {
                   disabled={loading || !title.trim() || !content.trim()}
                   className="lakambini-gradient text-white"
                 >
-                  <Eye className="h-4 w-4 mr-2" />
-                  {uploading ? "Uploading..." : "Publish"}
+                  {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Eye className="h-4 w-4 mr-2" />}
+                  Publish
                 </Button>
               </div>
             </div>
